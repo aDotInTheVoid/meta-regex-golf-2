@@ -5,10 +5,8 @@
 mkdir -p out
 
 RUSTFLAGS="-C target-cpu=native"
+cargo build --release
 for i in v*
-do
-    cd $i
-    cargo build --release
-    cp target/release/$i ../out
-    cd ..
+do    
+    cp target/release/$i ./out
 done

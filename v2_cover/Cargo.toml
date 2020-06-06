@@ -8,9 +8,6 @@ edition = "2018"
 [[bin]]
 name = "v2_cover"
 path = "main.rs"
-[profile.release]
-lto = "fat"
-codegen-units = 1
 [dependencies]
 itertools = "0.9.0"
 h4x_re = "0.2.4"

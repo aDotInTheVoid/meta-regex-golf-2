@@ -16,25 +16,12 @@ const DOT: u8 = b'.';
 const END: u8 = b'$';
 
 pub fn main() {
-    // let mut winners: HashSet<_> = WINNERS.split_whitespace().collect();
-    // let mut losers: HashSet<_> = LOSERS
-    //     .split_whitespace()
-    //     .collect::<Set>()
-    //     .difference(&winners)
-    //     .copied()
-    //     .collect::<HashSet<_>>();
-
-    // losers.insert("fillmore");
-    // losers.remove("fremont");
-
-    // println!("{}", find_regex(&mut winners, &losers));
     bench();
 }
 
 fn find_regex(winners: &mut Set, losers: &Set) -> String {
     let w2 = winners.clone();
     let mut covers = regex_covers(&w2, losers);
-    let regexes: HashSet<_> = covers.keys().collect();
     let mut solutions: Vec<Regex> = vec![];
     while !winners.is_empty() {
         let best = covers.iter().max_by_key(|(reg, matching)| {
@@ -49,40 +36,6 @@ fn find_regex(winners: &mut Set, losers: &Set) -> String {
         }
     }
     solutions.into_iter().map(|x| x.to_string()).join("|")
-}
-fn find_regex_(winners: &mut Set, losers: &Set) -> String {
-    let mut pool: HashSet<_> = regex_parts(&winners, &losers).collect();
-    let mut solutions: Vec<Regex> = vec![];
-    // Iterate until we match all winners
-    while !winners.is_empty() {
-        // Select best candidate from pool
-        let best = pool.iter().max_by_key(|pat| {
-            4 * matches(pat, winners.iter().copied()).count() as i64 - pat.cost() as i64
-        });
-        // Candidate may be none, so we need to handle that
-        if let Some(best_part) = best {
-            // Add to solutions
-            solutions.push(best_part.clone());
-            // Remove entries matched by new regex
-            winners.retain(|entry| !best_part.is_match(entry));
-            // Remove regex's that no longer match anything
-            pool.retain(|patern| matches(patern, winners.iter().copied()).next().is_some());
-        } else {
-            eprintln!("I don't think it can be done");
-        }
-    }
-    solutions.into_iter().map(|x| x.to_string()).join("|")
-}
-
-fn regex_parts<'a>(winners: &'a Set<'a>, losers: &'a Set<'a>) -> impl Iterator<Item = Regex> + 'a {
-    let whole = winners.iter().map(|x| format!("^{}$", x));
-    let parts = whole
-        .clone()
-        .flat_map(subparts)
-        .flat_map(dotify)
-        .map(Regex::new)
-        .filter(move |part| losers.iter().all(|loser| !part.is_match(loser)));
-    whole.map(Regex::new).chain(parts)
 }
 
 fn regex_covers<'a>(winners: &'a Set<'a>, losers: &'a Set<'a>) -> HashMap<Regex, HashSet<&'a str>> {
@@ -147,14 +100,8 @@ fn subparts(word: String) -> impl Iterator<Item = String> {
         .map(move |(start, end)| word[start..end].to_owned())
 }
 
-fn matches<'a>(
-    r: &'a Regex,
-    strs: impl Iterator<Item = &'a str> + 'a,
-) -> impl Iterator<Item = &'a str> + 'a {
-    strs.filter(move |s| r.is_match(s))
-}
-
 #[rustfmt::skip]
+#[allow(clippy::blacklisted_name)]
 fn bench(){
     let mut winners: Set = ["bush","clinton","monroe","madison","hayes","kennedy","reagan","jefferson","mckinley","taft","wilson","harding","jackson","garfield","truman","van-buren","polk","johnson","roosevelt","carter","cleveland","washington","grant","coolidge","nixon","eisenhower","obama","lincoln","adams","hoover","taylor","harrison","pierce","buchanan"].iter().copied().collect();
     let losers: Set = ["tilden","greeley","dukakis","hughes","smith","landon","fremont","scott","ford","pinckney","gore","king","humphrey","cass","mcclellan","bryan","mcgovern","davis","mccain","clay","cox","dewey","parker","wilkie","stevenson","romney","blaine","seymour","hancock","breckinridge","kerry","goldwater","dole","mondale"].iter().copied().collect();

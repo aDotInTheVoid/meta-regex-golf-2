@@ -4,11 +4,10 @@ use jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+use h4x_re::Regex;
 use itertools::Itertools;
-use regex::Regex;
 
-use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
+use std::collections::*;
 
 type Set<'a> = HashSet<&'a str>;
 
@@ -16,68 +15,58 @@ const START: u8 = b'^';
 const DOT: u8 = b'.';
 const END: u8 = b'$';
 
-#[derive(Clone)]
-struct Part {
-    string: String,
-    reg: Regex,
-}
-
-impl Hash for Part {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.string.hash(state);
-    }
-}
-impl PartialEq for Part {
-    fn eq(&self, other: &Self) -> bool {
-        self.string == other.string
-    }
-}
-impl Eq for Part {}
-
-impl Part {
-    fn new(string: String) -> Self {
-        let reg = Regex::new(&string).unwrap();
-        Self { reg, string }
-    }
-}
-
 pub fn main() {
     bench();
 }
 
+type Ptr = *const u8;
+
 fn find_regex(winners: &mut Set, losers: &Set) -> String {
-    let mut pool: HashSet<_> = regex_parts(&winners, &losers).collect();
-    let mut solutions: Vec<Part> = vec![];
-    // Iterate until we match all winners
-    while winners.len() != 0 {
-        // Select best candidate from pool
-        let best = pool.iter().max_by_key(|pat| {
-            4 * matches(pat, winners.iter().map(|&x| x)).count() as i64 - pat.string.len() as i64
+    let mut winner_ptr: HashSet<Ptr> = winners.iter().copied().map(str::as_ptr).collect();
+
+    
+    let mut covers = regex_covers(winners, losers);
+    let mut solutions: Vec<Regex> = vec![];
+    while !winner_ptr.is_empty() {
+        let best = covers.iter().max_by_key(|(reg, matching)| {
+            4 * matching.intersection(&winner_ptr).count() as i64 - reg.cost() as i64
         });
-        // Candidate may be none, so we need to handle that
-        if let Some(best_part) = best {
-            // Add to solutions
-            solutions.push(best_part.clone());
-            // Remove entries matched by new regex
-            winners.retain(|entry| !best_part.reg.is_match(entry));
-            // Remove regex's that no longer match anything
-            pool.retain(|patern| matches(patern, winners.iter().map(|&x| x)).next().is_some());
+        if let Some((part, matched)) = best {
+            solutions.push(part.clone());
+            winner_ptr.retain(|x| !matched.contains(x));
+            covers.retain(|_, matched| matched.intersection(&winner_ptr).next().is_some());
         } else {
-            eprintln!("I don't think it can be done");
+            panic!("It's not possible")
         }
     }
-    solutions.into_iter().map(|x| x.string).join("|")
+    solutions.into_iter().map(|x| x.to_string()).join("|")
 }
 
-fn regex_parts<'a>(winners: &'a Set<'a>, losers: &'a Set<'a>) -> impl Iterator<Item = Part> + 'a {
+#[inline(never)]
+fn regex_covers<'a>(winners: &'a Set<'a>, losers: &'a Set<'a>) -> HashMap<Regex, HashSet<Ptr>> {
     let whole = winners.iter().map(|x| format!("^{}$", x));
     let parts = whole
         .clone()
         .flat_map(subparts)
         .flat_map(dotify)
-        .map(Part::new)
-        .filter(move |part| losers.iter().all(|loser| !part.reg.is_match(loser)));
-    whole.map(Part::new).chain(parts)
+        .map(Regex::new)
+        .filter(move |part| losers.iter().all(|loser| !part.is_match(loser)));
+    whole
+        .map(Regex::new)
+        .chain(parts)
+        .map(|pat| {
+            // Because Borrowck
+            let hm = winners
+                .iter()
+                .filter(|win| pat.is_match(win))
+                .copied()
+                .map(str::as_ptr)
+                .collect();
+            (pat, hm)
+        })
+        .collect()
+
+    //(pat, winners.iter().filter(|win| pat.is_match(win)).copied().collect()))
 }
 
 fn dotify(word: String) -> impl Iterator<Item = String> {
@@ -117,14 +106,8 @@ fn subparts(word: String) -> impl Iterator<Item = String> {
         .map(move |(start, end)| word[start..end].to_owned())
 }
 
-fn matches<'a>(
-    r: &'a Part,
-    strs: impl Iterator<Item = &'a str> + 'a,
-) -> impl Iterator<Item = &'a str> + 'a {
-    strs.filter(move |s| r.reg.is_match(s))
-}
-
 #[rustfmt::skip]
+#[allow(clippy::blacklisted_name)]
 fn bench(){
     let mut winners: Set = ["bush","clinton","monroe","madison","hayes","kennedy","reagan","jefferson","mckinley","taft","wilson","harding","jackson","garfield","truman","van-buren","polk","johnson","roosevelt","carter","cleveland","washington","grant","coolidge","nixon","eisenhower","obama","lincoln","adams","hoover","taylor","harrison","pierce","buchanan"].iter().copied().collect();
     let losers: Set = ["tilden","greeley","dukakis","hughes","smith","landon","fremont","scott","ford","pinckney","gore","king","humphrey","cass","mcclellan","bryan","mcgovern","davis","mccain","clay","cox","dewey","parker","wilkie","stevenson","romney","blaine","seymour","hancock","breckinridge","kerry","goldwater","dole","mondale"].iter().copied().collect();

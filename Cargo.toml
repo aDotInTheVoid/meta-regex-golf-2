@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "v0_old",
+    "v1_cus_regex",
+    "v2_cover",
+    "v3_mem",
+]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
