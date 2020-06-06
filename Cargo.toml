@@ -4,6 +4,7 @@ members = [
     "v1_cus_regex",
     "v2_cover",
     "v3_mem",
+    "v4_stack",
 ]
 
 [profile.release]

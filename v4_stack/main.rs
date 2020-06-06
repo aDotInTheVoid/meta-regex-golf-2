@@ -4,6 +4,8 @@ use jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+mod h4x_re;
+
 use h4x_re::Regex;
 use itertools::Itertools;
 
@@ -23,7 +25,6 @@ type Ptr = *const u8;
 
 fn find_regex(winners: &mut Set, losers: &Set) -> String {
     let mut winner_ptr: HashSet<Ptr> = winners.iter().copied().map(str::as_ptr).collect();
-
     let mut covers = regex_covers(winners, losers);
     let mut solutions: Vec<Regex> = vec![];
     while !winner_ptr.is_empty() {
@@ -48,10 +49,10 @@ fn regex_covers<'a>(winners: &'a Set<'a>, losers: &'a Set<'a>) -> HashMap<Regex,
         .clone()
         .flat_map(subparts)
         .flat_map(dotify)
-        .map(Regex::new)
+        .map(Regex::new_owned)
         .filter(move |part| losers.iter().all(|loser| !part.is_match(loser)));
     whole
-        .map(Regex::new)
+        .map(Regex::new_owned)
         .chain(parts)
         .map(|pat| {
             // Because Borrowck
@@ -99,7 +100,7 @@ fn set_dots(word: &mut str, n: usize) {
 fn subparts(word: String) -> impl Iterator<Item = String> {
     let len = word.len();
     (0..=len)
-        .cartesian_product(1..5)
+        .cartesian_product(1..=h4x_re::NON_LITERAL_LEN)
         .map(|(start, offset)| (start, start + offset))
         .filter(move |(_, end)| *end <= len)
         .map(move |(start, end)| word[start..end].to_owned())
