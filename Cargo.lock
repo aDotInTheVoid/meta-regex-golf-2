@@ -169,6 +169,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "v5_literal"
+version = "0.1.0"
+dependencies = [
+ "itertools",
+ "jemallocator",
+]
+
+[[package]]
 name = "x1_cover_bs_reg"
 version = "0.1.0"
 dependencies = [
