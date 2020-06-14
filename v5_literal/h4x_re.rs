@@ -27,7 +27,7 @@ enum Pattern {
     // String is the litteral
     // First usize is leading dots
     // Secound is trailing dots
-    //DotsLit(String, usize, usize),
+    DotsLit(String, usize, usize),
 }
 
 impl Pattern {
@@ -35,17 +35,18 @@ impl Pattern {
         match self {
             Self::Dots(x) => x.len(),
             Self::NoDots(x) => x.len(),
-            //Self::DotsLit(x, front, back) => x.len() + front + back,
+            Self::DotsLit(x, front, back) => x.len() + front + back,
         }
     }
 
-    fn str(&self) -> &str {
+    fn str(&self) -> Cow<str> {
         match self {
-            Self::Dots(x) => x,
-            Self::NoDots(x) => x
-            //Self::DotsLit(x, front, back) => {
-            //    Cow::Owned(format!("{}{}{}", ".".repeat(*front), x, ".".repeat(*back)))
-            //}
+            Self::Dots(x) => Cow::Borrowed(x),
+            Self::NoDots(x) => Cow::Borrowed(x),
+
+            Self::DotsLit(x, front, back) => {
+                Cow::Owned(format!("{}{}{}", ".".repeat(*front), x, ".".repeat(*back)))
+            }
         }
     }
 
@@ -53,13 +54,12 @@ impl Pattern {
         match self {
             Self::Dots(x) => x.as_bytes(),
             Self::NoDots(x) => x.as_bytes(),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
 
 impl Regex {
-
     pub fn new(input: String) -> Self {
         // TODO: Allow empty string to work
 
@@ -86,32 +86,32 @@ impl Regex {
         // Remove anchors
         let pattern_range = &input[start_idx..end_idx];
         let pattern = if input.as_bytes().contains(&DOT) {
-            // let lit_idx = pattern_range
-            //     .as_bytes()
-            //     .iter()
-            //     .map(|x| *x != b'.')
-            //     .enumerate()
-            //     .filter(|(_, x)| *x) // Remove non lits
-            //     .map(|(x, _)| x)
-            //     .collect_vec();
+            let lit_idx = pattern_range
+                .as_bytes()
+                .iter()
+                .map(|x| *x != b'.')
+                .enumerate()
+                .filter(|(_, x)| *x) // Remove non lits
+                .map(|(x, _)| x)
+                .collect_vec();
 
-            // if binds == Binds::Neither
-            //     && !lit_idx.is_empty()
-            //     && lit_idx
-            //         .iter() // Get index's of lits
-            //         .tuple_windows()
-            //         .map(|(x, y)| y - x == 1)
-            //         .all(|x| x)
-            // {
-            //     Pattern::DotsLit(
-            //         pattern_range[lit_idx[0]..=*lit_idx.last().unwrap()].to_owned(),
-            //         lit_idx[0],
-            //         pattern_range.len() - lit_idx.last().unwrap() - 1,
-            //     )
-            //     // Pattern::Dots(pattern_range.to_owned())
-            // } else {
-            Pattern::Dots(pattern_range.to_owned())
-        // }
+            if binds == Binds::Neither
+                && !lit_idx.is_empty()
+                && lit_idx
+                    .iter() // Get index's of lits
+                    .tuple_windows()
+                    .map(|(x, y)| y - x == 1)
+                    .all(|x| x)
+            {
+                // Pattern::DotsLit(
+                //     pattern_range[lit_idx[0]..=*lit_idx.last().unwrap()].to_owned(),
+                //     lit_idx[0],
+                //     pattern_range.len() - lit_idx.last().unwrap() - 1,
+                // )
+                Pattern::Dots(pattern_range.to_owned())
+            } else {
+                Pattern::Dots(pattern_range.to_owned())
+            }
         } else {
             Pattern::NoDots(pattern_range.to_owned())
         };
@@ -181,7 +181,7 @@ impl Regex {
         match &self.pattern {
             Pattern::NoDots(x) => x == text,
             Pattern::Dots(_) => self.match_dots_pos(text),
-            //Pattern::DotsLit(_, _, _) => unreachable!(),
+            Pattern::DotsLit(_, _, _) => unreachable!(),
         }
     }
 
@@ -189,7 +189,7 @@ impl Regex {
         match &self.pattern {
             Pattern::NoDots(x) => text.contains(x),
             Pattern::Dots(_) => self.match_dots_pos_unknown(text),
-            //Pattern::DotsLit(lit, start, end) => Self::match_dots_lit(lit, *start, *end, text),
+            Pattern::DotsLit(lit, start, end) => Self::match_dots_lit(lit, *start, *end, text),
         }
     }
 
