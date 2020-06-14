@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use std::str::pattern::{Pattern as _, Searcher};
 
 const START: u8 = b'^';
@@ -188,7 +188,8 @@ impl Regex {
     fn match_dots_lit(lit: &str, start: usize, end: usize, text: &str) -> bool {
         let mut searcher = lit.into_searcher(text);
         while let Some((start_idx, end_idx)) = searcher.next_match() {
-            if start_idx >= start && end_idx + 1 <= text.len() - end {
+            dbg!(start, start_idx, end, end_idx);
+            if start_idx >= start && end_idx <= text.len() - end {
                 return true;
             }
         }
@@ -404,7 +405,6 @@ mod tests {
         reg_text!("^w.n$", ["win", "wan", "wxn"], ["winn", " win ", "xin"]);
         reg_text!("..n$", ["win", "..n", "pin", "impl pin", "xdin"], ["in"]);
     }
-
 
     #[test]
     fn dots_unknown_pos() {
