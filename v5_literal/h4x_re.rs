@@ -103,12 +103,12 @@ impl Regex {
                     .map(|(x, y)| y - x == 1)
                     .all(|x| x)
             {
-                // Pattern::DotsLit(
-                //     pattern_range[lit_idx[0]..=*lit_idx.last().unwrap()].to_owned(),
-                //     lit_idx[0],
-                //     pattern_range.len() - lit_idx.last().unwrap() - 1,
-                // )
-                Pattern::Dots(pattern_range.to_owned())
+                Pattern::DotsLit(
+                    pattern_range[lit_idx[0]..=*lit_idx.last().unwrap()].to_owned(),
+                    lit_idx[0],
+                    pattern_range.len() - lit_idx.last().unwrap() - 1,
+                )
+            //Pattern::Dots(pattern_range.to_owned())
             } else {
                 Pattern::Dots(pattern_range.to_owned())
             }
@@ -194,9 +194,14 @@ impl Regex {
     }
 
     fn match_dots_lit(lit: &str, start: usize, end: usize, text: &str) -> bool {
-        panic!();
+        //panic!();
+
+        if lit.len() + start + end > text.len() {
+            return false;
+        }
         let mut searcher = lit.into_searcher(text);
         while let Some((start_idx, end_idx)) = searcher.next_match() {
+            //dbg!((lit, start, end, text));
             if start_idx >= start && end_idx <= text.len() - end {
                 return true;
             }
