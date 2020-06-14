@@ -5,6 +5,8 @@ members = [
     "v2_cover",
     "v3_mem",
     "v4_stack",
+    "x1_cover_bs_reg",
+    "x2_numbers",
 ]
 
 [profile.release]

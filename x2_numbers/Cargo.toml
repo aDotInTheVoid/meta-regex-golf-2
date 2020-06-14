@@ -1,0 +1,17 @@
+[package]
+name = "x2_numbers"
+version = "0.1.0"
+authors = ["Nixon <nixon.emoony@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "x2_numbers"
+path = "main.rs"
+[dependencies]
+itertools = "0.9.0"
+smallstr = {version = "0.2.0", features = ["union"]}
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+jemallocator = "0.3.2"
+

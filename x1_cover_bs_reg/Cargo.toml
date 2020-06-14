@@ -1,0 +1,17 @@
+[package]
+name = "x1_cover_bs_reg"
+version = "0.1.0"
+authors = ["Nixon <nixon.emoony@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "x1_cover_bs_reg"
+path = "main.rs"
+[dependencies]
+itertools = "0.9.0"
+regex = "1"
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+jemallocator = "0.3.2"
+

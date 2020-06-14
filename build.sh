@@ -10,3 +10,8 @@ for i in v*
 do    
     cp target/release/$i ./out
 done
+
+for i in x*
+do
+    cp target/release/$i ./out
+ done

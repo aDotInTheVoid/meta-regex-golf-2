@@ -1,13 +1,8 @@
-use smallstr;
-
-// A constant for fun
-pub const NON_LITERAL_LEN: usize = 4;
-
-type SmallString = smallstr::SmallString<[u8; NON_LITERAL_LEN]>;
-
 const START: u8 = b'^';
 const DOT: u8 = b'.';
 const END: u8 = b'$';
+
+use itertools::Itertools;
 
 #[derive(PartialEq, Debug, Clone, Hash, Eq)]
 pub struct Regex {
@@ -25,8 +20,8 @@ enum Binds {
 
 #[derive(PartialEq, Debug, Clone, Hash, Eq)]
 enum Pattern {
-    NoDots(SmallString),
-    Dots(SmallString),
+    NoDots(String),
+    Dots(String),
 }
 
 impl Pattern {
@@ -36,8 +31,8 @@ impl Pattern {
 
     fn str(&self) -> &str {
         match self {
-            Self::Dots(x) => &x,
-            Self::NoDots(x) => &x,
+            Self::Dots(x) => x,
+            Self::NoDots(x) => x,
         }
     }
 
@@ -47,7 +42,7 @@ impl Pattern {
 }
 
 impl Regex {
-    pub fn new(input: &str) -> Self {
+    pub fn new(input: String) -> Self {
         // Check for ^ and $ in regex
         let has_start = input.as_bytes()[0] == START;
         let has_end = input.as_bytes().last().map(|&x| x == END).unwrap_or(false);
@@ -68,19 +63,33 @@ impl Regex {
 
         let pattern_range = &input[start_idx..end_idx];
         let pattern = if input.as_bytes().contains(&DOT) {
-            Pattern::Dots(SmallString::from_str(pattern_range))
+            Pattern::Dots(pattern_range.to_owned())
         } else {
-            Pattern::NoDots(SmallString::from_str(pattern_range))
+            Pattern::NoDots(pattern_range.to_owned())
         };
 
         Self { binds, pattern }
     }
 
-    pub fn new_owned(input: String) -> Self {
-        Self::new(&input)
+    #[cfg(test)]
+    pub fn new_clone(input: &str) -> Self {
+        Self::new(input.to_owned())
     }
 
     pub fn is_match(&self, text: &str) -> bool {
+        if let (Binds::Neither, Pattern::Dots(x)) = (&self.binds, &self.pattern) {
+            let not_dot: Vec<bool> = x.bytes().map(|x| x != b'.').collect();
+            let continuous_lit = not_dot
+                .iter()
+                .enumerate() // Get (idx, is_lit)
+                .filter(|(_, x)| **x) // Remove non lits
+                .map(|(x, _)| x) // Get index's of lits
+                .tuple_windows()
+                .map(|(x, y)| y - x == 1)
+                .all(|x| x);
+            println!("{}, {}", continuous_lit, x); 
+        }
+
         let (start, end) = match self.binds {
             // Front Bind's we match 0..pattern len
             // Eg with neadle `^abc` and haystack `xyx...`,
@@ -132,7 +141,6 @@ impl Regex {
         )
     }
 
-    #[inline(never)]
     fn match_knows_pos(&self, text: &str) -> bool {
         match &self.pattern {
             Pattern::NoDots(x) => x == text,
@@ -140,17 +148,16 @@ impl Regex {
         }
     }
 
-    #[inline(never)]
     fn match_unknown_pos(&self, text: &str) -> bool {
         match &self.pattern {
-            Pattern::NoDots(x) => text.contains(x.as_ref()),
+            Pattern::NoDots(x) => text.contains(x),
             Pattern::Dots(_) => self.match_dots_pos_unknown(text),
         }
     }
-    #[inline(never)]
+
     fn match_dots_pos(&self, text: &str) -> bool {
         debug_assert_eq!(self.pattern.len(), text.len());
-        
+
         for (pat, txt) in self.pattern.as_bytes().iter().zip(text.as_bytes()) {
             if *pat == DOT {
                 continue;
@@ -160,7 +167,6 @@ impl Regex {
         }
         true
     }
-    #[inline(never)]
     fn match_dots_pos_unknown(&self, text: &str) -> bool {
         if text.len() < self.pattern.len() {
             return false;
@@ -173,10 +179,6 @@ impl Regex {
         }
         false
     }
-
-    pub(crate) fn str_len(&self) -> usize {
-        self.pattern.len()
-    }
 }
 
 #[cfg(test)]
@@ -187,39 +189,39 @@ mod tests {
     fn create() {
         let ans_1 = Regex {
             binds: Binds::Both,
-            pattern: Pattern::NoDots("win".into()),
+            pattern: Pattern::NoDots("win".to_string()),
         };
         let ans_2 = Regex {
             binds: Binds::Front,
-            pattern: Pattern::NoDots("win".into()),
+            pattern: Pattern::NoDots("win".to_string()),
         };
         let ans_3 = Regex {
             binds: Binds::Front,
-            pattern: Pattern::Dots("wi.".into()),
+            pattern: Pattern::Dots("wi.".to_string()),
         };
         let ans_4 = Regex {
             binds: Binds::Neither,
-            pattern: Pattern::Dots("wi.".into()),
+            pattern: Pattern::Dots("wi.".to_string()),
         };
         let ans_5 = Regex {
             binds: Binds::Neither,
-            pattern: Pattern::NoDots("wi".into()),
+            pattern: Pattern::NoDots("wi".to_string()),
         };
         let ans_6 = Regex {
             binds: Binds::Front,
-            pattern: Pattern::NoDots("wi".into()),
+            pattern: Pattern::NoDots("wi".to_string()),
         };
         let ans_7 = Regex {
             binds: Binds::Back,
-            pattern: Pattern::NoDots("win".into()),
+            pattern: Pattern::NoDots("win".to_string()),
         };
         let ans_8 = Regex {
             binds: Binds::Neither,
-            pattern: Pattern::NoDots("win".into()),
+            pattern: Pattern::NoDots("win".to_string()),
         };
         let ans_9 = Regex {
             binds: Binds::Back,
-            pattern: Pattern::Dots("wi.".into()),
+            pattern: Pattern::Dots("wi.".to_string()),
         };
 
         let test_1 = "^win$";
@@ -231,20 +233,20 @@ mod tests {
         let test_7 = "win$";
         let test_8 = "win";
         let test_9 = "wi.$";
-        assert_eq!(Regex::new(test_1), ans_1);
-        assert_eq!(Regex::new(test_2), ans_2);
-        assert_eq!(Regex::new(test_3), ans_3);
-        assert_eq!(Regex::new(test_4), ans_4);
-        assert_eq!(Regex::new(test_5), ans_5);
-        assert_eq!(Regex::new(test_6), ans_6);
-        assert_eq!(Regex::new(test_7), ans_7);
-        assert_eq!(Regex::new(test_8), ans_8);
-        assert_eq!(Regex::new(test_9), ans_9);
+        assert_eq!(Regex::new_clone(test_1), ans_1);
+        assert_eq!(Regex::new_clone(test_2), ans_2);
+        assert_eq!(Regex::new_clone(test_3), ans_3);
+        assert_eq!(Regex::new_clone(test_4), ans_4);
+        assert_eq!(Regex::new_clone(test_5), ans_5);
+        assert_eq!(Regex::new_clone(test_6), ans_6);
+        assert_eq!(Regex::new_clone(test_7), ans_7);
+        assert_eq!(Regex::new_clone(test_8), ans_8);
+        assert_eq!(Regex::new_clone(test_9), ans_9);
     }
 
     macro_rules! reg_text {
         ($regex:expr, [$($accpet:expr),*],  [$($regect:expr),*]) => {
-            let re = Regex::new($regex);
+            let re = Regex::new_clone($regex);
             $(
                 assert!(re.is_match($accpet));
             )*
@@ -259,7 +261,7 @@ mod tests {
         for i in &[
             "^win$", "^win", "^wi.", "wi.", "wi", "^wi", "win$", "win", "wi.$",
         ] {
-            let reg = Regex::new(i);
+            let reg = Regex::new_clone(i);
             assert_eq!(reg.cost(), i.len());
             assert_eq!(&&reg.to_string(), i);
         }
