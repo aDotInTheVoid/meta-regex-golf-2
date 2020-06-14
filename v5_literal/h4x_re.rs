@@ -188,7 +188,6 @@ impl Regex {
     fn match_dots_lit(lit: &str, start: usize, end: usize, text: &str) -> bool {
         let mut searcher = lit.into_searcher(text);
         while let Some((start_idx, end_idx)) = searcher.next_match() {
-            dbg!(start, start_idx, end, end_idx);
             if start_idx >= start && end_idx <= text.len() - end {
                 return true;
             }
