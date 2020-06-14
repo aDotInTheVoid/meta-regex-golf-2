@@ -4,13 +4,13 @@ use jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-use regex::Regex as BsRe;
 use itertools::Itertools;
+use regex::Regex as BsRe;
 
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
-struct Regex{
+struct Regex {
     s: String,
     r: BsRe,
 }
@@ -39,7 +39,6 @@ impl Regex {
         self.s
     }
 
-
     fn is_match(&self, text: &str) -> bool {
         self.r.is_match(text)
     }
@@ -48,14 +47,6 @@ impl Regex {
         self.s.len()
     }
 }
-
-
-
-
-
-
-
-
 
 type Set<'a> = HashSet<&'a str>;
 
