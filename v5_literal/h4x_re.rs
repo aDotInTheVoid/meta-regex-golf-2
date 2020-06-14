@@ -1,3 +1,7 @@
+use itertools::Itertools;
+use std::borrow::{Borrow, Cow};
+use std::str::pattern::{Pattern as _, Searcher};
+
 const START: u8 = b'^';
 const DOT: u8 = b'.';
 const END: u8 = b'$';
@@ -20,6 +24,10 @@ enum Binds {
 enum Pattern {
     NoDots(String),
     Dots(String),
+    /// String is the litteral
+    /// First usize is leading dots
+    /// Secound is trailing dots
+    DotsLit(String, usize, usize),
 }
 
 impl Pattern {
@@ -27,24 +35,33 @@ impl Pattern {
         self.str().len()
     }
 
-    fn str(&self) -> &str {
+    fn str(&self) -> Cow<str> {
         match self {
-            Self::Dots(x) => x,
-            Self::NoDots(x) => x,
+            Self::Dots(x) => Cow::Borrowed(x),
+            Self::NoDots(x) => Cow::Borrowed(x),
+            Self::DotsLit(x, front, back) => {
+                Cow::Owned(format!("{}{}{}", ".".repeat(*front), x, ".".repeat(*back)))
+            }
         }
     }
 
-    fn as_bytes(&self) -> &[u8] {
-        self.str().as_bytes()
+    fn as_bytes<'a>(&'a self) -> Cow<[u8]> {
+        match self.str() {
+            Cow::Owned(x) => Cow::Owned(x.into_bytes()),
+            Cow::Borrowed(x) => Cow::Borrowed(x.as_bytes()),
+        }
     }
 }
 
 impl Regex {
     pub fn new(input: String) -> Self {
+        // TODO: Allow empty string to work
+
         // Check for ^ and $ in regex
         let has_start = input.as_bytes()[0] == START;
         let has_end = input.as_bytes().last().map(|&x| x == END).unwrap_or(false);
 
+        // Get indexes to strip out anchors
         let start_idx = if has_start { 1 } else { 0 };
         let end_idx = if has_end {
             input.len() - 1
@@ -52,6 +69,7 @@ impl Regex {
             input.len()
         };
 
+        // Calculate binds
         let binds = match (has_start, has_end) {
             (true, true) => Binds::Both,
             (true, false) => Binds::Front,
@@ -59,15 +77,42 @@ impl Regex {
             (false, false) => Binds::Neither,
         };
 
+        // Remove anchors
         let pattern_range = &input[start_idx..end_idx];
         let pattern = if input.as_bytes().contains(&DOT) {
-            Pattern::Dots(pattern_range.to_owned())
+            let lit_idx = pattern_range
+                .as_bytes()
+                .iter()
+                .map(|x| *x != b'.')
+                .enumerate()
+                .filter(|(_, x)| *x) // Remove non lits
+                .map(|(x, _)| x)
+                .collect_vec();
+
+            if binds == Binds::Neither
+                && !lit_idx.is_empty()
+                && lit_idx
+                    .iter() // Get index's of lits
+                    .tuple_windows()
+                    .map(|(x, y)| y - x == 1)
+                    .all(|x| x)
+            {
+                Pattern::DotsLit(
+                    pattern_range[lit_idx[0]..=*lit_idx.last().unwrap()].to_owned(),
+                    lit_idx[0],
+                    pattern_range.len() - lit_idx.last().unwrap() - 1,
+                )
+            } else {
+                Pattern::Dots(pattern_range.to_owned())
+            }
         } else {
             Pattern::NoDots(pattern_range.to_owned())
         };
 
         Self { binds, pattern }
     }
+
+    #[cfg(test)]
     pub fn new_clone(input: &str) -> Self {
         Self::new(input.to_owned())
     }
@@ -128,6 +173,7 @@ impl Regex {
         match &self.pattern {
             Pattern::NoDots(x) => x == text,
             Pattern::Dots(_) => self.match_dots_pos(text),
+            Pattern::DotsLit(_, _, _) => unreachable!(),
         }
     }
 
@@ -135,7 +181,18 @@ impl Regex {
         match &self.pattern {
             Pattern::NoDots(x) => text.contains(x),
             Pattern::Dots(_) => self.match_dots_pos_unknown(text),
+            Pattern::DotsLit(lit, start, end) => Self::match_dots_lit(lit, *start, *end, text),
         }
+    }
+
+    fn match_dots_lit(lit: &str, start: usize, end: usize, text: &str) -> bool {
+        let mut searcher = lit.into_searcher(text);
+        while let Some((start_idx, end_idx)) = searcher.next_match() {
+            if start_idx >= start && end_idx + 1 <= text.len() - end {
+                return true;
+            }
+        }
+        false
     }
 
     fn match_dots_pos(&self, text: &str) -> bool {
@@ -170,52 +227,114 @@ mod tests {
 
     #[test]
     fn create() {
+        let test_1 = "^win$";
         let ans_1 = Regex {
             binds: Binds::Both,
             pattern: Pattern::NoDots("win".to_string()),
         };
+
+        let test_2 = "^win";
         let ans_2 = Regex {
             binds: Binds::Front,
             pattern: Pattern::NoDots("win".to_string()),
         };
+
+        let test_3 = "^wi.";
         let ans_3 = Regex {
             binds: Binds::Front,
             pattern: Pattern::Dots("wi.".to_string()),
         };
+
+        let test_4 = "wi.";
         let ans_4 = Regex {
             binds: Binds::Neither,
-            pattern: Pattern::Dots("wi.".to_string()),
+            pattern: Pattern::DotsLit("wi".to_string(), 0, 1),
         };
+
+        let test_5 = "wi";
         let ans_5 = Regex {
             binds: Binds::Neither,
             pattern: Pattern::NoDots("wi".to_string()),
         };
+
+        let test_6 = "^wi";
         let ans_6 = Regex {
             binds: Binds::Front,
             pattern: Pattern::NoDots("wi".to_string()),
         };
+
+        let test_7 = "win$";
         let ans_7 = Regex {
             binds: Binds::Back,
             pattern: Pattern::NoDots("win".to_string()),
         };
+
+        let test_8 = "win";
         let ans_8 = Regex {
             binds: Binds::Neither,
             pattern: Pattern::NoDots("win".to_string()),
         };
+
+        let test_9 = "wi.$";
         let ans_9 = Regex {
             binds: Binds::Back,
             pattern: Pattern::Dots("wi.".to_string()),
         };
 
-        let test_1 = "^win$";
-        let test_2 = "^win";
-        let test_3 = "^wi.";
-        let test_4 = "wi.";
-        let test_5 = "wi";
-        let test_6 = "^wi";
-        let test_7 = "win$";
-        let test_8 = "win";
-        let test_9 = "wi.$";
+        let test_10 = "a";
+        let ans_10 = Regex {
+            binds: Binds::Neither,
+            pattern: Pattern::NoDots("a".to_string()),
+        };
+
+        let test_11 = ".x";
+        let ans_11 = Regex {
+            binds: Binds::Neither,
+            pattern: Pattern::DotsLit("x".to_string(), 1, 0),
+        };
+
+        let test_12 = "..x";
+        let ans_12 = Regex {
+            binds: Binds::Neither,
+            pattern: Pattern::DotsLit("x".to_string(), 2, 0),
+        };
+
+        let test_13 = ".x.";
+        let ans_13 = Regex {
+            binds: Binds::Neither,
+            pattern: Pattern::DotsLit("x".to_string(), 1, 1),
+        };
+
+        let test_14 = "abc..";
+        let ans_14 = Regex {
+            binds: Binds::Neither,
+            pattern: Pattern::DotsLit("abc".to_string(), 0, 2),
+        };
+
+        let test_15 = "..abc..";
+        let ans_15 = Regex {
+            binds: Binds::Neither,
+            pattern: Pattern::DotsLit("abc".to_string(), 2, 2),
+        };
+
+        let test_16 = "ab..";
+        let ans_16 = Regex {
+            binds: Binds::Neither,
+            pattern: Pattern::DotsLit("ab".to_string(), 0, 2),
+        };
+
+        let test_17 = "w..n";
+        let ans_17 = Regex {
+            binds: Binds::Neither,
+            pattern: Pattern::Dots("w..n".to_string()),
+        };
+
+        let test_18 = "...";
+        let ans_18 = Regex {
+            binds: Binds::Neither,
+            pattern: Pattern::Dots("...".to_string()),
+        };
+
         assert_eq!(Regex::new_clone(test_1), ans_1);
         assert_eq!(Regex::new_clone(test_2), ans_2);
         assert_eq!(Regex::new_clone(test_3), ans_3);
@@ -225,6 +344,15 @@ mod tests {
         assert_eq!(Regex::new_clone(test_7), ans_7);
         assert_eq!(Regex::new_clone(test_8), ans_8);
         assert_eq!(Regex::new_clone(test_9), ans_9);
+        assert_eq!(Regex::new_clone(test_10), ans_10);
+        assert_eq!(Regex::new_clone(test_11), ans_11);
+        assert_eq!(Regex::new_clone(test_12), ans_12);
+        assert_eq!(Regex::new_clone(test_13), ans_13);
+        assert_eq!(Regex::new_clone(test_14), ans_14);
+        assert_eq!(Regex::new_clone(test_15), ans_15);
+        assert_eq!(Regex::new_clone(test_16), ans_16);
+        assert_eq!(Regex::new_clone(test_17), ans_17);
+        assert_eq!(Regex::new_clone(test_18), ans_18);
     }
 
     macro_rules! reg_text {
@@ -277,6 +405,7 @@ mod tests {
         reg_text!("..n$", ["win", "..n", "pin", "impl pin", "xdin"], ["in"]);
     }
 
+
     #[test]
     fn dots_unknown_pos() {
         reg_text!(
@@ -288,6 +417,22 @@ mod tests {
             "..x..",
             ["  x  ", "xxxxx"],
             ["sfsdfdx", "vxdfs", "asdfdsxd"]
+        );
+
+        reg_text!(
+            "x..",
+            ["x  ", "xzy", "zxyy", "assdxddd", "x  x"],
+            ["xx", "", "abcx", "ddxd"]
+        );
+        reg_text!(
+            "...abc",
+            ["abcabc", "xxxabc", "xxxabcxxx", "xxabcabc"],
+            ["xxabcxxx", "x"]
+        );
+        reg_text!(
+            "..abc...",
+            ["xxabcxxx", "xxabcabc"],
+            ["xabcxabc", "xabcxxx", "xxabcxx"]
         );
     }
 }

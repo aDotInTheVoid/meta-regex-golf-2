@@ -1,9 +1,9 @@
 #![type_length_limit = "12373190"]
+#![feature(pattern)]
 
 use jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
-
 
 mod h4x_re;
 use h4x_re::Regex;
