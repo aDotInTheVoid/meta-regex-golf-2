@@ -150,7 +150,7 @@ impl Regex {
     #[inline(never)]
     fn match_dots_pos(&self, text: &str) -> bool {
         debug_assert_eq!(self.pattern.len(), text.len());
-        
+
         for (pat, txt) in self.pattern.as_bytes().iter().zip(text.as_bytes()) {
             if *pat == DOT {
                 continue;
@@ -172,10 +172,6 @@ impl Regex {
             }
         }
         false
-    }
-
-    pub(crate) fn str_len(&self) -> usize {
-        self.pattern.len()
     }
 }
 

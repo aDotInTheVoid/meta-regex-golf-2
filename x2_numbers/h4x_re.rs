@@ -87,7 +87,7 @@ impl Regex {
                 .tuple_windows()
                 .map(|(x, y)| y - x == 1)
                 .all(|x| x);
-            println!("{}, {}", continuous_lit, x); 
+            println!("{}, {}", continuous_lit, x);
         }
 
         let (start, end) = match self.binds {
